@@ -1,53 +1,12 @@
-async function handler(req, res) {
-  try {
-    const targetUrl = process.env.TARGET_API_URL || "https://tc.sbtc-mng.com/api.php";
-    const method = req.method || "GET";
-    const headers = {
-      Accept: "application/json"
-    };
+export default async function handler(req,res){
 
-    const requestUrl = new URL(req.url || "/", "https://" + (req.headers.host || "localhost"));
-    const target = new URL(targetUrl);
-    target.search = requestUrl.search;
+const response = await fetch("http://tc.sbtc-mng.com/api.php", {
+method: req.method,
+headers: { "Content-Type": "application/json" },
+body: req.method !== "GET" ? JSON.stringify(req.body) : undefined
+});
 
-    let body;
-    if (method !== "GET" && method !== "HEAD") {
-      if (req.body && typeof req.body === "string") {
-        body = req.body;
-      } else if (req.body && typeof req.body === "object") {
-        body = JSON.stringify(req.body);
-      }
+const data = await response.json();
 
-      headers["Content-Type"] = "application/json";
-    }
-
-    const response = await fetch(target.toString(), {
-      method,
-      headers,
-      body
-    });
-
-    const text = await response.text();
-    let parsed = {};
-
-    try {
-      parsed = text ? JSON.parse(text) : {};
-    } catch {
-      parsed = { success: false, message: text };
-    }
-
-    const normalized = parsed && Object.prototype.hasOwnProperty.call(parsed, "data")
-      ? parsed
-      : { success: true, message: "ok", data: parsed };
-
-    res.status(response.status).json(normalized);
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Proxy Error",
-      error: err.toString()
-    });
-  }
+res.status(200).json(data);
 }
-
-module.exports = handler;
