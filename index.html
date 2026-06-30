@@ -4,193 +4,185 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>🌿 Smart Nature Weather IoT FIXED</title>
+<title>🌿 Smart IoT Dashboard FINAL</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
 margin:0;
-padding:25px;
-font-family:Inter;
-transition:.8s;
-overflow-x:hidden;
+padding:20px;
+font-family:Arial;
+background:linear-gradient(135deg,#e8f5e9,#e0f2fe);
+color:#0f172a;
 }
 
-/* THEMES */
-body.rainy{background:linear-gradient(180deg,#0f172a,#1e293b,#334155);color:#fff;}
-body.sunny{background:linear-gradient(180deg,#fef9c3,#fde68a,#fca5a5);color:#14532d;}
-body.fog{background:linear-gradient(180deg,#e2e8f0,#cbd5e1,#94a3b8);color:#0f172a;}
-
-/* RAIN */
-.rain{position:fixed;inset:0;pointer-events:none;z-index:-1;}
-.drop{
-position:absolute;
-width:2px;
-height:80px;
-background:#60a5fa;
-animation:fall linear infinite;
-opacity:.4;
-}
-@keyframes fall{
-0%{transform:translateY(-120vh);opacity:0}
-20%{opacity:.5}
-100%{transform:translateY(120vh);opacity:0}
+.panel{
+background:#fff;
+padding:15px;
+border-radius:12px;
+margin-top:15px;
+box-shadow:0 2px 10px rgba(0,0,0,0.05);
 }
 
-/* UI */
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-top:20px;}
-.card{padding:20px;border-radius:15px;background:rgba(255,255,255,.6);}
-.panel{margin-top:20px;padding:20px;border-radius:15px;background:rgba(255,255,255,.6);}
+table{
+width:100%;
+border-collapse:collapse;
+}
 
-button{padding:6px 10px;border:none;border-radius:8px;cursor:pointer;}
-.on{background:#22c55e;color:#fff;}
-.off{background:#ef4444;color:#fff;}
+th,td{
+padding:10px;
+border-bottom:1px solid #eee;
+}
 
-table{width:100%;border-collapse:collapse;}
-td,th{padding:10px;border-bottom:1px solid #ddd;}
+button{
+padding:6px 10px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+margin:2px;
+}
+
+.on{background:#22c55e;color:#fff}
+.off{background:#ef4444;color:#fff}
+.active{background:#f59e0b;color:#fff}
+
+.status{
+font-weight:bold;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
 </style>
 </head>
 
 <body>
 
-<div class="rain"></div>
-
-<h1>🌿 Smart Nature IoT FIXED</h1>
-
-<div class="grid">
-<div class="card"><strong id="deviceCount">0</strong> Devices</div>
-<div class="card"><strong id="ledCount">0</strong> LED</div>
-<div class="card"><strong id="activeCount">0</strong> Active</div>
+<div class="header">
+<h2>🌿 Smart IoT Dashboard FINAL</h2>
+<button onclick="loadAll()">🔄 Refresh</button>
 </div>
 
 <div class="panel">
-<h2>Device Control</h2>
+<h3>📡 Devices</h3>
+
 <table>
 <thead>
-<tr><th>Name</th><th>Type</th><th>Status</th><th>Control</th></tr>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Pin</th>
+<th>Status</th>
+<th>Control</th>
+</tr>
 </thead>
+
 <tbody id="device"></tbody>
 </table>
 </div>
 
 <div class="panel">
-<h2>Sensor Graph</h2>
+<h3>📊 Sensor Graph</h3>
 <canvas id="chart"></canvas>
 </div>
 
 <script>
 
-/* ================= API (VERCEL SAFE) ================= */
-const API_DEVICES = "/api/devices";
-const API_CONTROL = "/api/control";
-const API_SENSOR = "/api/sensor";
-
-/* ================= RAIN ================= */
-function createRain(){
-const rain=document.querySelector(".rain");
-rain.innerHTML="";
-
-for(let i=0;i<60;i++){
-const d=document.createElement("div");
-d.className="drop";
-d.style.left=Math.random()*100+"vw";
-d.style.animationDuration=(0.6+Math.random()*1.2)+"s";
-rain.appendChild(d);
-}
-}
-
-/* ================= WEATHER ================= */
-function setWeather(mode){
-document.body.classList.remove("rainy","sunny","fog");
-document.body.classList.add(mode);
-}
-
-function smartWeather(){
-const t=20+Math.random()*20;
-if(t>32)setWeather("sunny");
-else if(t<25)setWeather("fog");
-else setWeather("rainy");
-}
+/* ================= API ================= */
+const API = "/api/proxy";
 
 /* ================= CHART ================= */
-let dataArr=[];
-let labels=[];
+let dataArr = [];
+let labels = [];
 
-const chart=new Chart(document.getElementById("chart"),{
-type:"line",
-data:{labels,dataArr},
-options:{
-animation:false
+const chart = new Chart(document.getElementById("chart"), {
+type: "line",
+data: {
+labels: labels,
+datasets: [{
+label: "Sensor Value",
+data: dataArr,
+borderColor: "#16a34a",
+tension: 0.4
+}]
+},
+options: {
+animation: false
 }
 });
 
-/* ================= DEVICE ================= */
+/* ================= LOAD DEVICE ================= */
 async function loadDevice(){
 try{
-const res=await fetch(API_DEVICES);
-const json=await res.json();
 
-const data=json?.data || [];
+const res = await fetch(API);
+const json = await res.json();
 
-let html="";
+const data = json?.data || [];
+
+let html = "";
 
 data.forEach(d=>{
-const name=d.device_name||"-";
-const type=d.device_type||"-";
-const status=(d.status||"OFF").toUpperCase();
 
-html+=`
+let status = (d.status || "OFF").toUpperCase();
+
+let cls = "off";
+if(status === "ON") cls = "on";
+if(status === "ACTIVE") cls = "active";
+
+html += `
 <tr>
-<td>${name}</td>
-<td>${type}</td>
-<td>${status}</td>
+<td>${d.device_name || "-"}</td>
+<td>${d.device_type || "-"}</td>
+<td>${d.pin || "-"}</td>
+<td class="status ${cls}">${status}</td>
 <td>
-<button class="on" onclick="control('${name}','ON')">ON</button>
-<button class="off" onclick="control('${name}','OFF')">OFF</button>
+<button class="on" onclick="control('${d.id}','ON')">ON</button>
+<button class="off" onclick="control('${d.id}','OFF')">OFF</button>
 </td>
-</tr>`;
+</tr>
+`;
 });
 
-document.getElementById("device").innerHTML=html;
+document.getElementById("device").innerHTML = html;
 
-deviceCount.innerText=data.length;
-ledCount.innerText=data.filter(x=>(x.device_type||"").toUpperCase()==="LED").length;
-activeCount.innerText=data.filter(x=>(x.status||"").toUpperCase()==="ON").length;
-
-}catch(e){
-console.log("device error",e);
+}catch(err){
+console.log("Device error:",err);
 }
 }
 
-/* ================= CONTROL (FIXED: POST) ================= */
-async function control(name,status){
-await fetch(API_CONTROL,{
+/* ================= CONTROL DEVICE ================= */
+async function control(id,status){
+try{
+
+await fetch(API,{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({device_name:name,status})
+body:JSON.stringify({
+id:id,
+status:status
+})
 });
 
 loadDevice();
+
+}catch(err){
+console.log("Control error:",err);
+}
 }
 
-/* ================= SENSOR ================= */
+/* ================= SENSOR (MOCK SAFE) ================= */
 async function loadSensor(){
-try{
-const res=await fetch(API_SENSOR);
-const json=await res.json();
 
-const data=json?.data || [];
-
-if(data.length>0){
-const last=data[0];
-const value=Number(last.value||last.sensor_value||0);
+let value = Math.floor(Math.random()*100);
 
 dataArr.push(value);
 labels.push("");
 
-if(dataArr.length>25){
+if(dataArr.length > 25){
 dataArr.shift();
 labels.shift();
 }
@@ -198,24 +190,15 @@ labels.shift();
 chart.update();
 }
 
-}catch(e){
-console.log("sensor error",e);
-}
-}
-
 /* ================= INIT ================= */
-createRain();
-setWeather("rainy");
-
-setInterval(smartWeather,8000);
-
+function loadAll(){
 loadDevice();
 loadSensor();
+}
 
-setInterval(()=>{
-loadDevice();
-loadSensor();
-},4000);
+loadAll();
+
+setInterval(loadAll,4000);
 
 </script>
 
